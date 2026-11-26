@@ -44,6 +44,19 @@ class TestCore(unittest.TestCase):
    c.execute('INSERT INTO referrals(invited_id,inviter_id,created) VALUES(?,?,?)',(2,1,1000))
    self.assertEqual(c.execute('SELECT COUNT(*) FROM referrals WHERE inviter_id=1').fetchone()[0],1)
    self.assertEqual(c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0],0)
+ def test_admin_access_and_stats(self):
+  old=os.environ.get('PCN_ADMIN_EMAIL')
+  try:
+   os.environ['PCN_ADMIN_EMAIL']='a@b.com'
+   with server.conn() as db:
+    self.assertTrue(server.is_admin(db,1))
+    self.assertEqual(server.admin_stats(db,100000)['users'],1)
+    self.assertEqual(server.admin_stats(db,100000)['issued_pcn'],0)
+   os.environ['PCN_ADMIN_EMAIL']='other@example.com'
+   with server.conn() as db:self.assertFalse(server.is_admin(db,1))
+  finally:
+   if old is None:os.environ.pop('PCN_ADMIN_EMAIL',None)
+   else:os.environ['PCN_ADMIN_EMAIL']=old
  def test_password(self):
   p=server.pwd_hash('password12345');self.assertTrue(server.pwd_verify('password12345',p));self.assertFalse(server.pwd_verify('wrong',p))
 if __name__=='__main__':unittest.main()
