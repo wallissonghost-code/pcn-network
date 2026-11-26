@@ -22,6 +22,14 @@ class TestCore(unittest.TestCase):
     c.execute('BEGIN IMMEDIATE');r,status=server.claim(c,1,186400);c.execute('COMMIT')
     self.assertEqual(status,200);self.assertEqual(r['claimed'],1.0)
   finally:server.MAX_SUPPLY=original
+ def test_login_throttle(self):
+  server._login_attempts.clear()
+  now=1000
+  for i in range(server.MAX_LOGIN_ATTEMPTS):
+   self.assertTrue(server.login_allowed('test-ip',now))
+   server.record_login_failure('test-ip',now)
+  self.assertFalse(server.login_allowed('test-ip',now))
+  self.assertTrue(server.login_allowed('test-ip',now+server.LOGIN_WINDOW+1))
  def test_password(self):
   p=server.pwd_hash('password12345');self.assertTrue(server.pwd_verify('password12345',p));self.assertFalse(server.pwd_verify('wrong',p))
 if __name__=='__main__':unittest.main()
