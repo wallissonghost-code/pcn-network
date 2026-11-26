@@ -1,36 +1,36 @@
-# PCN — Crypto Network (MVP experimental)
+# PCN — Crypto Network
 
-Protótipo local, **sem criptomoeda real**, sem valor monetário e sem transações em blockchain. O botão de mineração representa uma sessão de participação, não mineração por CPU.
+**Rede experimental de recompensas simuladas.** Não há criptomoeda real, blockchain, saque, depósito, cotação ou investimento. A sessão diária não utiliza mineração computacional.
 
-## Executar
+## O que funciona
+- Cadastro/login, senhas com PBKDF2 e sessões com tokens armazenados como hash
+- Sessões de 24 horas, resgate único e histórico de saldo em micro-PCN
+- Teto diário global de emissão simulada e limite máximo de oferta
+- Indicações por código, **sem bônus** e sem emissão extra
+- Estatísticas agregadas da rede e painel administrativo somente leitura
+- Testes unitários e de integração HTTP executados no GitHub Actions
 
-Requer Python 3.10+ (somente biblioteca padrão):
+## Executar localmente
+Requer Python 3.11+ e somente biblioteca padrão.
 
 ```bash
-python server.py
+PCN_PRIVATE_BETA=0 python server.py
 ```
 
-Abra `http://localhost:8000` no navegador. Para executar testes:
+Abra http://127.0.0.1:8000. Para testes:
 
 ```bash
 python -m unittest discover -s tests -v
 ```
 
-## Recursos
+Por segurança, o servidor escuta apenas em `127.0.0.1` e bloqueia novos cadastros por padrão. `PCN_PRIVATE_BETA=0` habilita cadastro **somente para desenvolvimento local**. Não exponha essa configuração na internet.
 
-Registro e login com PBKDF2, token de sessão armazenado como hash em SQLite; sessão de 24 horas, resgate único e ledger em micro-PCN; limite diário global de 24.000 PCN e oferta máxima simulada de 100 milhões; interface web responsiva.
+Para liberar o painel administrativo de uma conta já cadastrada, defina `PCN_ADMIN_EMAIL` no ambiente do processo. Não armazene dados pessoais ou segredos no GitHub.
 
-## Limitações — NÃO publicar como serviço aberto
+## API de teste
+`GET /api/health`, `GET /api/network`, `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/status`, `POST /api/start`, `POST /api/claim`, `GET /api/referrals`, `GET /api/admin/access`, `GET /api/admin/stats`.
 
-Sem rate limiting, verificação de e-mail, MFA, CAPTCHA, antifraude, recuperação de senha, auditoria independente ou deploy. Token no sessionStorage; SQLite e HTTP simples somente para testes. A distribuição fixa de 2,4 PCN pode esgotar o orçamento diário. Não há token on-chain, carteira externa, KYC, indicações ou painel ADM. Não depositar dinheiro ou criptomoedas.
+## Limitações e próximos passos
+**Não implantar publicamente.** Faltam verificação de e-mail, recuperação de senha, MFA administrativo, antifraude, proteção contra abuso distribuído, banco gerenciado, backups restauráveis, auditoria de segurança, testes de carga e revisão jurídica/LGPD. A política de emissão e a eventual criação de um token on-chain exigem validação separada.
 
-## Próximos passos
-
-Revisar tokenomics, criar backend de produção, implementar antifraude, RBAC, indicações e observabilidade; testes de segurança e carga; revisão jurídica e contratos em testnet.
-
-Oferta proposta e não vinculante: 100 milhões de PCN (70% comunidade, 15% ecossistema, 10% liquidez, 5% equipe).
-## Painel administrativo experimental (V0.6)
-
-Defina `PCN_ADMIN_EMAIL` no ambiente do servidor com o e-mail **exato** de uma conta cadastrada. Após entrar nessa conta, o painel de métricas agregadas aparece na interface. Sem essa variável, nenhum usuário tem acesso administrativo. Não configure credenciais no repositório.
-
-O backend verifica o privilégio em cada requisição `GET /api/admin/stats`; a interface oculta não substitui autorização. Métricas: usuários, sessões, convites, emissão e tentativas de autenticação. **Somente leitura**: não há edição de saldos, emissão manual ou dados pessoais dos usuários. Não usar em produção sem autenticação reforçada e auditoria.
+Consulte [arquitetura](docs/ARQUITETURA.md) e [operação](docs/DEPLOY.md). A proposta ilustrativa de oferta é 100 milhões de PCN (70% comunidade, 15% ecossistema, 10% liquidez, 5% equipe), sem compromisso de emissão real ou valorização.
