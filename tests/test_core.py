@@ -57,6 +57,12 @@ class TestCore(unittest.TestCase):
   finally:
    if old is None:os.environ.pop('PCN_ADMIN_EMAIL',None)
    else:os.environ['PCN_ADMIN_EMAIL']=old
+ def test_network_statistics(self):
+  with server.conn() as db:
+   s=server.admin_stats(db,100000)
+   self.assertEqual(s['users'],1)
+   self.assertEqual(s['active_sessions'],0)
+   self.assertEqual(s['remaining_pcn'],100_000_000)
  def test_password(self):
   p=server.pwd_hash('password12345');self.assertTrue(server.pwd_verify('password12345',p));self.assertFalse(server.pwd_verify('wrong',p))
 if __name__=='__main__':unittest.main()
