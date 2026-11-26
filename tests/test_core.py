@@ -63,6 +63,24 @@ class TestCore(unittest.TestCase):
    self.assertEqual(s['users'],1)
    self.assertEqual(s['active_sessions'],0)
    self.assertEqual(s['remaining_pcn'],100_000_000)
+ def test_referral_cannot_self_invite(self):
+  with server.conn() as db:
+   with self.assertRaises(server.sqlite3.IntegrityError):
+    db.execute('INSERT INTO referrals(invited_id,inviter_id,created) VALUES(1,1,1000)')
+ def test_claim_does_not_exceed_daily_pool(self):
+  original=server.DAILY_POOL
+  try:
+   server.DAILY_POOL=1_000000
+   with server.conn() as db:
+    db.execute('BEGIN IMMEDIATE')
+    server.start(db,1,100000)
+    db.execute('COMMIT')
+    db.execute('BEGIN IMMEDIATE')
+    reward,status=server.claim(db,1,186400)
+    db.execute('COMMIT')
+    self.assertEqual(status,200)
+    self.assertEqual(reward['claimed'],1)
+  finally:server.DAILY_POOL=original
  def test_password(self):
   p=server.pwd_hash('password12345');self.assertTrue(server.pwd_verify('password12345',p));self.assertFalse(server.pwd_verify('wrong',p))
 if __name__=='__main__':unittest.main()
