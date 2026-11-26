@@ -26,3 +26,10 @@
 - Validação de Content-Length antes da leitura de requisições POST.
 - **Não pronto para produção:** limitação por IP pode afetar redes compartilhadas; falta proteção distribuída, e-mail verificado, recuperação de conta, observabilidade e auditoria.
 - Execução dos testes no GitHub Actions ainda não verificada nesta atualização.
+
+## Atualização V0.5 — Indicações experimentais
+- Códigos individuais de convite gerados pelo backend, registro da relação entre convidador e convidado e contagem de convites.
+- Campo de código opcional no cadastro e visualização de código e contagem na interface.
+- Nenhuma recompensa em PCN é emitida por convite. Política de bônus e antifraude pendentes.
+- Teste de integridade para convite sem emissão de moedas adicionado; execução do workflow ainda não confirmada.
+- Painel administrativo, hospedagem e verificação de e-mail continuam pendentes.
