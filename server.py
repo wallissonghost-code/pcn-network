@@ -200,7 +200,6 @@ class Handler(BaseHTTPRequestHandler):
       c.execute('COMMIT')
      except sqlite3.IntegrityError:
       c.execute('ROLLBACK')
-      record_auth_attempt(ip,'login',now)
       return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
     if not row or not pwd_verify(password,row[1]):
@@ -228,4 +227,4 @@ class Handler(BaseHTTPRequestHandler):
   self.send({'error':'Não encontrado'},404)
 
 if __name__=='__main__':
- init();port=int(os.getenv('PORT','8000'));print(f'PCN local: http://127.0.0.1:{port}');ThreadingHTTPServer(('0.0.0.0',port),Handler).serve_forever()
+ init();port=int(os.getenv('PORT','8000'));host=os.getenv('PCN_HOST','127.0.0.1');print(f'PCN experimental: http://{host}:{port}');ThreadingHTTPServer((host,port),Handler).serve_forever()
