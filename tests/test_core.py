@@ -36,6 +36,14 @@ class TestCore(unittest.TestCase):
    server.record_auth_attempt('signup-ip','register',now)
   self.assertFalse(server.auth_attempt_allowed('signup-ip','register',now))
   self.assertTrue(server.auth_attempt_allowed('signup-ip','register',now+server.LOGIN_WINDOW+1))
+ def test_referral_tracking_no_rewards(self):
+  with server.conn() as c:
+   code=server.ensure_referral_code(c,1)
+   self.assertEqual(server.ensure_referral_code(c,1),code)
+   c.execute('INSERT INTO users(email,password,created) VALUES(?,?,?)',('invited@example.com','test',0))
+   c.execute('INSERT INTO referrals(invited_id,inviter_id,created) VALUES(?,?,?)',(2,1,1000))
+   self.assertEqual(c.execute('SELECT COUNT(*) FROM referrals WHERE inviter_id=1').fetchone()[0],1)
+   self.assertEqual(c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0],0)
  def test_password(self):
   p=server.pwd_hash('password12345');self.assertTrue(server.pwd_verify('password12345',p));self.assertFalse(server.pwd_verify('wrong',p))
 if __name__=='__main__':unittest.main()
