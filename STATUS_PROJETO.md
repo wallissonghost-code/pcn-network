@@ -13,3 +13,8 @@
 
 ## Segurança
 **Não usar em produção.** Sem depósitos, venda ou promessa de retorno. Revisão de segurança, jurídica e tokenomics necessária antes de qualquer lançamento.
+
+## Atualização V0.3
+- Adicionado bloqueio experimental de tentativas de autenticação por IP (8 falhas/15 minutos) e teste automatizado.
+- **Limitação:** bloqueio em memória, reiniciado com o servidor e não compartilhado entre instâncias. Não é adequado para produção; migrar para Redis ou gateway de rate limiting e incluir proteção de cadastro.
+- Testes no GitHub Actions ainda dependem de confirmação de execução; não afirmar aprovação sem logs.
