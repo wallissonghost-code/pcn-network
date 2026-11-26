@@ -9,15 +9,17 @@ DB=Path(os.getenv('PCN_DB',str(ROOT/'pcn.sqlite3')))
 SESSION=24*3600
 MAX_LOGIN_ATTEMPTS=8
 LOGIN_WINDOW=15*60
-_login_attempts={}
+MAX_REGISTRATIONS=4
 
-def login_allowed(ip,now):
- attempts=[t for t in _login_attempts.get(ip,[]) if now-t<LOGIN_WINDOW]
- _login_attempts[ip]=attempts
- return len(attempts)<MAX_LOGIN_ATTEMPTS
+def auth_attempt_allowed(ip,kind,now):
+ with conn() as c:
+  c.execute('DELETE FROM auth_attempts WHERE created<?',(now-LOGIN_WINDOW,))
+  n=c.execute('SELECT COUNT(*) FROM auth_attempts WHERE ip=? AND kind=? AND created>?',(ip,kind,now-LOGIN_WINDOW)).fetchone()[0]
+ return n<(MAX_REGISTRATIONS if kind=='register' else MAX_LOGIN_ATTEMPTS)
 
-def record_login_failure(ip,now):
- _login_attempts.setdefault(ip,[]).append(now)
+def record_auth_attempt(ip,kind,now):
+ with conn() as c:
+  c.execute('INSERT INTO auth_attempts(ip,kind,created) VALUES(?,?,?)',(ip,kind,now))
 
 DAILY_POOL=24000_000000
 MAX_SUPPLY=100_000_000_000000
@@ -34,7 +36,9 @@ def init():
   CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL,expires INTEGER NOT NULL,FOREIGN KEY(user_id) REFERENCES users(id));
   CREATE TABLE IF NOT EXISTS mining(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,started INTEGER NOT NULL,ends INTEGER NOT NULL,claimed INTEGER NOT NULL DEFAULT 0,UNIQUE(user_id,started));
   CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,amount INTEGER NOT NULL,kind TEXT NOT NULL,created INTEGER NOT NULL,ref INTEGER UNIQUE NOT NULL);
-  CREATE TABLE IF NOT EXISTS day_pool(day TEXT PRIMARY KEY,active INTEGER NOT NULL DEFAULT 0,issued INTEGER NOT NULL DEFAULT 0);""")
+  CREATE TABLE IF NOT EXISTS day_pool(day TEXT PRIMARY KEY,active INTEGER NOT NULL DEFAULT 0,issued INTEGER NOT NULL DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS auth_attempts(id INTEGER PRIMARY KEY,ip TEXT NOT NULL,kind TEXT NOT NULL,created INTEGER NOT NULL);
+  CREATE INDEX IF NOT EXISTS idx_auth_attempts ON auth_attempts(ip,kind,created);""")
 
 def pwd_hash(password):
  salt=secrets.token_bytes(16)
@@ -99,26 +103,30 @@ class Handler(BaseHTTPRequestHandler):
    row=c.execute('SELECT user_id FROM sessions WHERE token_hash=? AND expires>?',(token,int(time.time()))).fetchone()
   return row[0] if row else None
  def do_POST(self):
-  if int(self.headers.get('Content-Length','0'))>4096:return self.send({'error':'Payload muito grande'},413)
-  try:data=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0'))))
+  try: length=int(self.headers.get('Content-Length','-1'))
+  except ValueError:return self.send({'error':'Comprimento inválido'},400)
+  if length<0:return self.send({'error':'Content-Length obrigatório'},411)
+  if length>4096:return self.send({'error':'Payload muito grande'},413)
+  try:data=json.loads(self.rfile.read(length))
   except Exception:return self.send({'error':'JSON inválido'},400)
   path=urlparse(self.path).path;now=int(time.time())
   if path in ('/api/register','/api/login'):
    ip=self.client_address[0]
-   if not login_allowed(ip,now):return self.send({'error':'Muitas tentativas. Aguarde 15 minutos.'},429)
+   kind='register' if path.endswith('register') else 'login'
+   if not auth_attempt_allowed(ip,kind,now):return self.send({'error':'Muitas tentativas. Aguarde 15 minutos.'},429)
+   if kind=='register':record_auth_attempt(ip,kind,now)
    email=str(data.get('email','')).strip().lower();password=str(data.get('password',''))
    if not 5<=len(email)<=254 or '@' not in email or not 10<=len(password)<=128:return self.send({'error':'E-mail inválido ou senha com menos de 10 caracteres'},400)
    with conn() as c:
     if path.endswith('register'):
      try:c.execute('INSERT INTO users(email,password,created) VALUES(?,?,?)',(email,pwd_hash(password),now))
      except sqlite3.IntegrityError:
-      record_login_failure(ip,now)
+      record_auth_attempt(ip,'login',now)
       return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
     if not row or not pwd_verify(password,row[1]):
      record_login_failure(ip,now)
      return self.send({'error':'Credenciais inválidas'},401)
-    _login_attempts.pop(ip,None)
     token=secrets.token_urlsafe(32)
     c.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),row[0],now+7*86400))
    return self.send({'token':token,'expires':now+7*86400})
