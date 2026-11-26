@@ -7,6 +7,18 @@ from urllib.parse import urlparse
 ROOT=Path(__file__).parent
 DB=Path(os.getenv('PCN_DB',str(ROOT/'pcn.sqlite3')))
 SESSION=24*3600
+MAX_LOGIN_ATTEMPTS=8
+LOGIN_WINDOW=15*60
+_login_attempts={}
+
+def login_allowed(ip,now):
+ attempts=[t for t in _login_attempts.get(ip,[]) if now-t<LOGIN_WINDOW]
+ _login_attempts[ip]=attempts
+ return len(attempts)<MAX_LOGIN_ATTEMPTS
+
+def record_login_failure(ip,now):
+ _login_attempts.setdefault(ip,[]).append(now)
+
 DAILY_POOL=24000_000000
 MAX_SUPPLY=100_000_000_000000
 
@@ -92,14 +104,21 @@ class Handler(BaseHTTPRequestHandler):
   except Exception:return self.send({'error':'JSON inválido'},400)
   path=urlparse(self.path).path;now=int(time.time())
   if path in ('/api/register','/api/login'):
+   ip=self.client_address[0]
+   if not login_allowed(ip,now):return self.send({'error':'Muitas tentativas. Aguarde 15 minutos.'},429)
    email=str(data.get('email','')).strip().lower();password=str(data.get('password',''))
    if not 5<=len(email)<=254 or '@' not in email or not 10<=len(password)<=128:return self.send({'error':'E-mail inválido ou senha com menos de 10 caracteres'},400)
    with conn() as c:
     if path.endswith('register'):
      try:c.execute('INSERT INTO users(email,password,created) VALUES(?,?,?)',(email,pwd_hash(password),now))
-     except sqlite3.IntegrityError:return self.send({'error':'E-mail já cadastrado'},409)
+     except sqlite3.IntegrityError:
+      record_login_failure(ip,now)
+      return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
-    if not row or not pwd_verify(password,row[1]):return self.send({'error':'Credenciais inválidas'},401)
+    if not row or not pwd_verify(password,row[1]):
+     record_login_failure(ip,now)
+     return self.send({'error':'Credenciais inválidas'},401)
+    _login_attempts.pop(ip,None)
     token=secrets.token_urlsafe(32)
     c.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),row[0],now+7*86400))
    return self.send({'token':token,'expires':now+7*86400})
