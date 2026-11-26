@@ -29,3 +29,8 @@ Sem rate limiting, verificação de e-mail, MFA, CAPTCHA, antifraude, recuperaç
 Revisar tokenomics, criar backend de produção, implementar antifraude, RBAC, indicações e observabilidade; testes de segurança e carga; revisão jurídica e contratos em testnet.
 
 Oferta proposta e não vinculante: 100 milhões de PCN (70% comunidade, 15% ecossistema, 10% liquidez, 5% equipe).
+## Painel administrativo experimental (V0.6)
+
+Defina `PCN_ADMIN_EMAIL` no ambiente do servidor com o e-mail **exato** de uma conta cadastrada. Após entrar nessa conta, o painel de métricas agregadas aparece na interface. Sem essa variável, nenhum usuário tem acesso administrativo. Não configure credenciais no repositório.
+
+O backend verifica o privilégio em cada requisição `GET /api/admin/stats`; a interface oculta não substitui autorização. Métricas: usuários, sessões, convites, emissão e tentativas de autenticação. **Somente leitura**: não há edição de saldos, emissão manual ou dados pessoais dos usuários. Não usar em produção sem autenticação reforçada e auditoria.
