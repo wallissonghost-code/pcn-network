@@ -66,6 +66,23 @@ def ensure_referral_code(c,uid):
    if row:return row[0]
  raise RuntimeError('Não foi possível gerar código de indicação')
 
+def is_admin(c,uid):
+ email=os.getenv('PCN_ADMIN_EMAIL','').strip().lower()
+ if not email:return False
+ row=c.execute('SELECT email FROM users WHERE id=?',(uid,)).fetchone()
+ return bool(row and hmac.compare_digest(row[0],email))
+
+def admin_stats(c,now):
+ today=day(now)
+ users=c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+ active=c.execute('SELECT COUNT(*) FROM mining WHERE ends>? AND claimed=0',(now,)).fetchone()[0]
+ pending=c.execute('SELECT COUNT(*) FROM mining WHERE ends<=? AND claimed=0',(now,)).fetchone()[0]
+ referrals=c.execute('SELECT COUNT(*) FROM referrals').fetchone()[0]
+ issued=c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0]
+ today_issued=c.execute('SELECT COALESCE(issued,0) FROM day_pool WHERE day=?',(today,)).fetchone()
+ recent=c.execute('SELECT COUNT(*) FROM auth_attempts WHERE created>?',(now-LOGIN_WINDOW,)).fetchone()[0]
+ return {'users':users,'active_sessions':active,'unclaimed_sessions':pending,'referrals':referrals,'issued_pcn':issued/1e6,'remaining_pcn':max(0,MAX_SUPPLY-issued)/1e6,'today_issued_pcn':(today_issued[0] if today_issued else 0)/1e6,'recent_auth_attempts':recent,'as_of':now}
+
 def day(ts):return datetime.fromtimestamp(ts,timezone.utc).strftime('%Y-%m-%d')
 
 def start(c,uid,now):
@@ -102,6 +119,18 @@ class Handler(BaseHTTPRequestHandler):
    raw=(ROOT/'static'/'index.html').read_bytes();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path in ('/app.js','/style.css'):
    raw=(ROOT/'static'/path.lstrip('/')).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if path.endswith('js') else 'text/css');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+  if path=='/api/admin/stats':
+   uid=self.auth()
+   if not uid:return self.send({'error':'Não autorizado'},401)
+   with conn() as c:
+    if not is_admin(c,uid):return self.send({'error':'Acesso restrito'},403)
+    stats=admin_stats(c,int(time.time()))
+   return self.send(stats)
+  if path=='/api/admin/access':
+   uid=self.auth()
+   if not uid:return self.send({'error':'Não autorizado'},401)
+   with conn() as c:allowed=is_admin(c,uid)
+   return self.send({'admin':allowed})
   if path=='/api/referrals':
    uid=self.auth()
    if not uid:return self.send({'error':'Não autorizado'},401)
@@ -160,7 +189,7 @@ class Handler(BaseHTTPRequestHandler):
       return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
     if not row or not pwd_verify(password,row[1]):
-     record_login_failure(ip,now)
+     record_auth_attempt(ip,'login',now)
      return self.send({'error':'Credenciais inválidas'},401)
     token=secrets.token_urlsafe(32)
     c.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),row[0],now+7*86400))
