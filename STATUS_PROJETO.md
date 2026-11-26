@@ -33,3 +33,10 @@
 - Nenhuma recompensa em PCN é emitida por convite. Política de bônus e antifraude pendentes.
 - Teste de integridade para convite sem emissão de moedas adicionado; execução do workflow ainda não confirmada.
 - Painel administrativo, hospedagem e verificação de e-mail continuam pendentes.
+
+## Atualização V0.6 — Administração experimental
+- Endpoints `/api/admin/access` e `/api/admin/stats` com autorização no backend por conta configurada em `PCN_ADMIN_EMAIL`.
+- Painel administrativo de métricas agregadas, somente leitura; nenhuma operação de emissão ou ajuste de saldos.
+- Corrigida referência inexistente `record_login_failure` no caminho de falha de autenticação.
+- Teste de autorização e estatísticas adicionado; execução do GitHub Actions não confirmada nesta sessão.
+- **Atenção:** configurar `PCN_ADMIN_EMAIL` apenas no ambiente do servidor; autenticação administrativa requer reforço antes de produção.
