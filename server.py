@@ -38,7 +38,10 @@ def init():
   CREATE TABLE IF NOT EXISTS ledger(id INTEGER PRIMARY KEY,user_id INTEGER NOT NULL,amount INTEGER NOT NULL,kind TEXT NOT NULL,created INTEGER NOT NULL,ref INTEGER UNIQUE NOT NULL);
   CREATE TABLE IF NOT EXISTS day_pool(day TEXT PRIMARY KEY,active INTEGER NOT NULL DEFAULT 0,issued INTEGER NOT NULL DEFAULT 0);
   CREATE TABLE IF NOT EXISTS auth_attempts(id INTEGER PRIMARY KEY,ip TEXT NOT NULL,kind TEXT NOT NULL,created INTEGER NOT NULL);
-  CREATE INDEX IF NOT EXISTS idx_auth_attempts ON auth_attempts(ip,kind,created);""")
+  CREATE INDEX IF NOT EXISTS idx_auth_attempts ON auth_attempts(ip,kind,created);
+  CREATE TABLE IF NOT EXISTS referral_codes(user_id INTEGER PRIMARY KEY REFERENCES users(id),code TEXT NOT NULL UNIQUE);
+  CREATE TABLE IF NOT EXISTS referrals(invited_id INTEGER PRIMARY KEY REFERENCES users(id),inviter_id INTEGER NOT NULL REFERENCES users(id),created INTEGER NOT NULL,CHECK(invited_id != inviter_id));
+  CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_id);""")
 
 def pwd_hash(password):
  salt=secrets.token_bytes(16)
@@ -49,6 +52,19 @@ def pwd_verify(password,stored):
   salt,digest=stored.split(':')
   return hmac.compare_digest(hashlib.pbkdf2_hmac('sha256',password.encode(),base64.b64decode(salt),250000).hex(),digest)
  except Exception:return False
+
+def ensure_referral_code(c,uid):
+ row=c.execute('SELECT code FROM referral_codes WHERE user_id=?',(uid,)).fetchone()
+ if row:return row[0]
+ for _ in range(5):
+  code=secrets.token_hex(5).upper()
+  try:
+   c.execute('INSERT INTO referral_codes(user_id,code) VALUES(?,?)',(uid,code))
+   return code
+  except sqlite3.IntegrityError:
+   row=c.execute('SELECT code FROM referral_codes WHERE user_id=?',(uid,)).fetchone()
+   if row:return row[0]
+ raise RuntimeError('Não foi possível gerar código de indicação')
 
 def day(ts):return datetime.fromtimestamp(ts,timezone.utc).strftime('%Y-%m-%d')
 
@@ -86,6 +102,13 @@ class Handler(BaseHTTPRequestHandler):
    raw=(ROOT/'static'/'index.html').read_bytes();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path in ('/app.js','/style.css'):
    raw=(ROOT/'static'/path.lstrip('/')).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if path.endswith('js') else 'text/css');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+  if path=='/api/referrals':
+   uid=self.auth()
+   if not uid:return self.send({'error':'Não autorizado'},401)
+   with conn() as c:
+    code=ensure_referral_code(c,uid)
+    count=c.execute('SELECT COUNT(*) FROM referrals WHERE inviter_id=?',(uid,)).fetchone()[0]
+   return self.send({'code':code,'invited_count':count,'reward_enabled':False})
   if path=='/api/status':
    uid=self.auth()
    if not uid:return self.send({'error':'Não autorizado'},401)
@@ -119,8 +142,20 @@ class Handler(BaseHTTPRequestHandler):
    if not 5<=len(email)<=254 or '@' not in email or not 10<=len(password)<=128:return self.send({'error':'E-mail inválido ou senha com menos de 10 caracteres'},400)
    with conn() as c:
     if path.endswith('register'):
-     try:c.execute('INSERT INTO users(email,password,created) VALUES(?,?,?)',(email,pwd_hash(password),now))
+     referral=str(data.get('referral','')).strip().upper()
+     inviter=None
+     if referral:
+      refrow=c.execute('SELECT user_id FROM referral_codes WHERE code=?',(referral,)).fetchone()
+      if not refrow:return self.send({'error':'Código de indicação inválido'},400)
+      inviter=refrow[0]
+     try:
+      c.execute('BEGIN IMMEDIATE')
+      cursor=c.execute('INSERT INTO users(email,password,created) VALUES(?,?,?)',(email,pwd_hash(password),now))
+      ensure_referral_code(c,cursor.lastrowid)
+      if inviter is not None:c.execute('INSERT INTO referrals(invited_id,inviter_id,created) VALUES(?,?,?)',(cursor.lastrowid,inviter,now))
+      c.execute('COMMIT')
      except sqlite3.IntegrityError:
+      c.execute('ROLLBACK')
       record_auth_attempt(ip,'login',now)
       return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
