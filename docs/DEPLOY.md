@@ -18,3 +18,13 @@ Para habilitar painel ADM, configure `PCN_ADMIN_EMAIL` apenas no ambiente do pro
 - Sem revisão de segurança independente, testes de carga ou aprovação jurídica.
 
 Endpoint de verificação: `GET /api/health`. Endpoint de estatísticas agregadas: `GET /api/network`.
+
+## Backup local verificado
+
+Para criar um backup consistente do banco SQLite em funcionamento:
+
+```bash
+python scripts/backup.py --source pcn.sqlite3
+```
+
+O script usa a API de backup do SQLite, executa `PRAGMA integrity_check` e recusa sobrescrever arquivos existentes. Os arquivos `.sqlite3` são ignorados pelo Git. **Um backup não é estratégia completa de recuperação:** testar restauração, retenção, criptografia e armazenamento externo antes de produção.
