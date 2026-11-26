@@ -10,4 +10,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m unittest discover -s tests -v
+      - name: Compile Python sources
+        run: python -m compileall -q server.py tests
+      - name: Unit and HTTP integration tests
+        run: python -m unittest discover -s tests -v

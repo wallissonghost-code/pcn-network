@@ -112,13 +112,24 @@ def claim(c,uid,now):
 class Handler(BaseHTTPRequestHandler):
  def send(self,data,status=200):
   raw=json.dumps(data,ensure_ascii=False).encode()
-  self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'");self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+  self.send_response(status);self.send_header('Referrer-Policy','no-referrer');self.send_header('X-Frame-Options','DENY');self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'");self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
  def do_GET(self):
   path=urlparse(self.path).path
   if path=='/':
    raw=(ROOT/'static'/'index.html').read_bytes();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path in ('/app.js','/style.css'):
    raw=(ROOT/'static'/path.lstrip('/')).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if path.endswith('js') else 'text/css');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+  if path=='/api/health':
+   try:
+    with conn() as c:c.execute('SELECT 1').fetchone()
+    return self.send({'status':'ok','database':'ok','network':'test'})
+   except sqlite3.Error:return self.send({'status':'unavailable'},503)
+  if path=='/api/network':
+   with conn() as c:
+    users=c.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+    issued=c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0]
+    active=c.execute('SELECT COUNT(*) FROM mining WHERE ends>? AND claimed=0',(int(time.time()),)).fetchone()[0]
+   return self.send({'users':users,'active_sessions':active,'issued_pcn':issued/1e6,'max_supply_pcn':MAX_SUPPLY/1e6,'simulation':True})
   if path=='/api/admin/stats':
    uid=self.auth()
    if not uid:return self.send({'error':'Não autorizado'},401)
@@ -159,9 +170,13 @@ class Handler(BaseHTTPRequestHandler):
   except ValueError:return self.send({'error':'Comprimento inválido'},400)
   if length<0:return self.send({'error':'Content-Length obrigatório'},411)
   if length>4096:return self.send({'error':'Payload muito grande'},413)
-  try:data=json.loads(self.rfile.read(length))
-  except Exception:return self.send({'error':'JSON inválido'},400)
+  try:
+   data=json.loads(self.rfile.read(length))
+   if not isinstance(data,dict):raise ValueError('JSON object required')
+  except (ValueError,UnicodeDecodeError):return self.send({'error':'JSON inválido'},400)
   path=urlparse(self.path).path;now=int(time.time())
+  if path in ('/api/register','/api/login') and os.getenv('PCN_PRIVATE_BETA','1')=='1' and path=='/api/register':
+   return self.send({'error':'Cadastro fechado: versão privada de testes'},403)
   if path in ('/api/register','/api/login'):
    ip=self.client_address[0]
    kind='register' if path.endswith('register') else 'login'
@@ -185,7 +200,6 @@ class Handler(BaseHTTPRequestHandler):
       c.execute('COMMIT')
      except sqlite3.IntegrityError:
       c.execute('ROLLBACK')
-      record_auth_attempt(ip,'login',now)
       return self.send({'error':'Cadastro indisponível para este e-mail'},409)
     row=c.execute('SELECT id,password FROM users WHERE email=?',(email,)).fetchone()
     if not row or not pwd_verify(password,row[1]):
@@ -213,4 +227,4 @@ class Handler(BaseHTTPRequestHandler):
   self.send({'error':'Não encontrado'},404)
 
 if __name__=='__main__':
- init();port=int(os.getenv('PORT','8000'));print(f'PCN local: http://127.0.0.1:{port}');ThreadingHTTPServer(('0.0.0.0',port),Handler).serve_forever()
+ init();port=int(os.getenv('PORT','8000'));host=os.getenv('PCN_HOST','127.0.0.1');print(f'PCN experimental: http://{host}:{port}');ThreadingHTTPServer((host,port),Handler).serve_forever()

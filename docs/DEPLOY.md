@@ -1,0 +1,20 @@
+# Operação de testes — NÃO publicar como serviço público
+
+## Ambiente local
+Python 3.11+ e sem dependências externas:
+
+```bash
+PCN_PRIVATE_BETA=0 python server.py
+python -m unittest discover -s tests -v
+```
+
+O servidor local usa SQLite. A configuração `PCN_PRIVATE_BETA=1` é o padrão: bloqueia novos cadastros até que um operador conscientemente habilite a opção. **Não use `PCN_PRIVATE_BETA=0` em hospedagem pública** nesta fase.
+
+Para habilitar painel ADM, configure `PCN_ADMIN_EMAIL` apenas no ambiente do processo com e-mail de uma conta existente. O controle atual ainda não possui MFA e não está apto para internet pública.
+
+## Bloqueadores de lançamento
+- Sem HTTPS gerenciado no servidor embutido, proteção distribuída, autenticação reforçada e verificações de e-mail.
+- Sem backups, restauração, observabilidade, limites por usuário e política antifraude suficiente.
+- Sem revisão de segurança independente, testes de carga ou aprovação jurídica.
+
+Endpoint de verificação: `GET /api/health`. Endpoint de estatísticas agregadas: `GET /api/network`.
