@@ -54,6 +54,8 @@ class TestCore(unittest.TestCase):
     self.assertEqual(server.admin_stats(db,100000)['issued_pcn'],0)
    os.environ['PCN_ADMIN_USER_ID']='2'
    with server.conn() as db:self.assertFalse(server.is_admin(db,1))
+   os.environ['PCN_ADMIN_USER_ID']='a@b.com'
+   with server.conn() as db:self.assertFalse(server.is_admin(db,1))
   finally:
    if old is None:os.environ.pop('PCN_ADMIN_USER_ID',None)
    else:os.environ['PCN_ADMIN_USER_ID']=old
