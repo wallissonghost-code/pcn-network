@@ -130,6 +130,13 @@ class Handler(BaseHTTPRequestHandler):
     issued=c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0]
     active=c.execute('SELECT COUNT(*) FROM mining WHERE ends>? AND claimed=0',(int(time.time()),)).fetchone()[0]
    return self.send({'users':users,'active_sessions':active,'issued_pcn':issued/1e6,'max_supply_pcn':MAX_SUPPLY/1e6,'simulation':True})
+  if path=='/api/session':
+   uid=self.auth()
+   if not uid:return self.send({'authenticated':False},401)
+   with conn() as c:
+    row=c.execute('SELECT id,email,created FROM users WHERE id=?',(uid,)).fetchone()
+   if not row:return self.send({'authenticated':False},401)
+   return self.send({'authenticated':True,'user':{'id':row[0],'email':row[1],'created':row[2]}})
   if path=='/api/admin/stats':
    uid=self.auth()
    if not uid:return self.send({'error':'Não autorizado'},401)
@@ -214,6 +221,9 @@ class Handler(BaseHTTPRequestHandler):
    token=hashlib.sha256(self.headers['Authorization'][7:].encode()).hexdigest()
    with conn() as c:c.execute('DELETE FROM sessions WHERE token_hash=?',(token,))
    return self.send({'ok':True})
+  if path=='/api/logout-all':
+   with conn() as c:c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+   return self.send({'ok':True,'message':'Todas as sessões encerradas'})
   if path in ('/api/start','/api/claim'):
    with conn() as c:
     try:
