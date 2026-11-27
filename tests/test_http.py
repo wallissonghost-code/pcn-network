@@ -78,6 +78,17 @@ class ApiIntegration(unittest.TestCase):
   status, _ = self.request('/api/login', {'email':'missing@example.com','password':'secure-password-123'})
   self.assertEqual(status, 401)
 
+ def test_revoke_all_sessions(self):
+  _, a = self.request('/api/register', {'email':'revoke@example.com','password':'secure-password-123'})
+  _, b = self.request('/api/login', {'email':'revoke@example.com','password':'secure-password-123'})
+  status, info = self.request('/api/session', token=a['token'])
+  self.assertEqual(status, 200)
+  self.assertTrue(info['authenticated'])
+  status, _ = self.request('/api/logout-all', {}, token=a['token'])
+  self.assertEqual(status, 200)
+  for token in (a['token'], b['token']):
+   status, _ = self.request('/api/status', token=token)
+   self.assertEqual(status, 401)
  def test_health_and_network(self):
   status, data = self.request('/api/health')
   self.assertEqual(status, 200)

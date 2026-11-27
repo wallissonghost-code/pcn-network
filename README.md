@@ -28,9 +28,13 @@ Por segurança, o servidor escuta apenas em `127.0.0.1` e bloqueia novos cadastr
 Para liberar o painel administrativo com o ID numérico de uma conta já cadastrada, defina `PCN_ADMIN_USER_ID` no ambiente do processo. Não armazene dados pessoais ou segredos no GitHub.
 
 ## API de teste
-`GET /api/health`, `GET /api/network`, `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/status`, `POST /api/start`, `POST /api/claim`, `GET /api/referrals`, `GET /api/admin/access`, `GET /api/admin/stats`.
+`GET /api/health`, `GET /api/network`, `GET /api/session`, `POST /api/logout-all`, `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/status`, `POST /api/start`, `POST /api/claim`, `GET /api/referrals`, `GET /api/admin/access`, `GET /api/admin/stats`.
 
 ## Limitações e próximos passos
 **Não implantar publicamente.** Faltam verificação de e-mail, recuperação de senha, MFA administrativo, antifraude, proteção contra abuso distribuído, banco gerenciado, backups restauráveis, auditoria de segurança, testes de carga e revisão jurídica/LGPD. A política de emissão e a eventual criação de um token on-chain exigem validação separada.
 
 Consulte [arquitetura](docs/ARQUITETURA.md) e [operação](docs/DEPLOY.md). A proposta ilustrativa de oferta é 100 milhões de PCN (70% comunidade, 15% ecossistema, 10% liquidez, 5% equipe), sem compromisso de emissão real ou valorização.
+
+## Segurança das sessões
+
+O usuário autenticado pode consultar a própria identidade via `GET /api/session` e encerrar todas as sessões ativas via `POST /api/logout-all` (corpo `{}`). Essa revogação invalida todos os tokens registrados da conta, incluindo outros dispositivos. Não substitui MFA, verificação de e-mail nem recuperação segura de senha.
