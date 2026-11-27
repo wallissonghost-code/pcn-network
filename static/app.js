@@ -1,31 +1,31 @@
-// Public visual preview only. No API, accounts, credentials or financial assets.
+// PCN public preview: local-only interactive simulation. No backend or real assets.
 const $=id=>document.getElementById(id);
-const state={active:false,claimed:false,ends:0,balance:0,history:[]};
-function msg(value){$('message').textContent=value}
-function showDashboard(){ $('auth').hidden=true;$('dashboard').hidden=false;render() }
+const state={balance:0,active:false,history:[]};
+const headings={home:'Visão geral',mine:'Mineração',wallet:'Minha carteira',network:'Ecossistema'};
+function toast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),4000)}
+function go(tab){if(!headings[tab])return;document.querySelectorAll('.page').forEach(el=>el.classList.toggle('active',el.id===tab));document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));$('page-heading').textContent=headings[tab];window.scrollTo({top:0,behavior:'smooth'})}
+document.querySelectorAll('[data-tab]').forEach(el=>el.addEventListener('click',()=>go(el.dataset.tab)));
 function render(){
- $('balance').textContent=state.balance.toLocaleString('pt-BR',{minimumFractionDigits:2});
- $('session').textContent=state.active?'Sessão demonstrativa em andamento.':'Nenhuma sessão ativa. Inicie uma demonstração.';
- $('referrals').textContent='Código: PCN-DEMO • Convites fictícios: 0';
- $('history').replaceChildren();
- if(!state.history.length)$('history').textContent='Nenhuma recompensa registrada.';
- for(const item of state.history){const div=document.createElement('div');div.textContent=item;$('history').append(div)}
- $('admin').hidden=true;
+ const number=state.balance.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+ $('balance-main').textContent=number;$('wallet-balance').textContent=number;
+ $('mine-badge').textContent=state.active?'EM ANDAMENTO':'DISPONÍVEL';
+ $('mine-badge').classList.toggle('running',state.active);
+ $('mining-status').textContent=state.active?'Sessão demonstrativa ativa':'Pronto para começar';
+ $('mining-sub').textContent=state.active?'Recompensa fictícia disponível para teste':'Ative seu ciclo de 24 horas';
+ $('mine-action').innerHTML=state.active?'Resgatar 2,40 PCN <span>↗</span>':'Iniciar mineração <span>↗</span>';
+ $('mine-page-status').textContent=state.active?'Sessão ativada!':'Pronto para minerar';
+ $('mine-page-detail').textContent=state.active?'Faça um resgate simulado para conhecer o fluxo.':'Ative sua sessão e explore a experiência de mineração.';
+ $('mine-page-action').textContent=state.active?'Resgatar 2,40 PCN fictícios ↗':'Ativar sessão de demonstração ↗';
+ const list=$('transactions');list.replaceChildren();
+ if(!state.history.length){const el=document.createElement('div');el.className='empty-state';el.textContent='Nenhuma atividade ainda. Inicie uma mineração para experimentar.';list.append(el)}
+ for(const entry of state.history){const el=document.createElement('div');el.className='transaction';const left=document.createElement('div');const name=document.createElement('strong');name.textContent='Recompensa de mineração';const date=document.createElement('small');date.textContent=entry.date;left.append(name,date);const amount=document.createElement('span');amount.className='positive';amount.textContent='+2,40 PCN';el.append(left,amount);list.append(el)}
 }
-$('network').textContent='Rede de demonstração • Estatísticas fictícias • Nenhuma moeda real';
-$('email').disabled=true;$('password').disabled=true;$('referral').disabled=true;
-for(const action of ['login','register'])$(action).onclick=()=>{showDashboard();msg('Modo demonstração: nenhum cadastro foi criado.')};
-$('start').onclick=()=>{
- if(state.active){msg('Já existe uma sessão demonstrativa ativa.');return}
- state.active=true;state.claimed=false;state.ends=Date.now()+86400000;
- render();msg('Sessão demonstrativa iniciada. Para visualizar o resgate, use o botão Resgatar recompensa.')
-};
-$('claim').onclick=()=>{
- if(!state.active){msg('Ative a sessão demonstrativa primeiro.');return}
- state.active=false;state.claimed=true;state.balance+=2.4;
- state.history.unshift('+2,40 PCN • recompensa fictícia');
- render();msg('Resgate de demonstração: +2,40 PCN fictícios. Na aplicação real, é necessário esperar 24 horas.')
-};
-$('copy-referral').onclick=async()=>{try{await navigator.clipboard.writeText('PCN-DEMO');msg('Código fictício copiado')}catch(e){msg('Código fictício: PCN-DEMO')}};
-$('logout').onclick=()=>{$('dashboard').hidden=true;$('auth').hidden=false;msg('Demonstração encerrada.')};
-msg('Prévia pública: os dados existem somente nesta página e não são salvos.');
+function mine(){
+ if(!state.active){state.active=true;toast('Ciclo demonstrativo ativado. Você já pode simular o resgate.')}
+ else{state.active=false;state.balance=Math.round((state.balance+2.4)*100)/100;state.history.unshift({date:new Date().toLocaleString('pt-BR')+' · Demonstração'});toast('+2,40 PCN fictícios adicionados à carteira.')}
+ render()
+}
+$('mine-action').addEventListener('click',mine);
+$('mine-page-action').addEventListener('click',mine);
+$('copy-code').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('PCN-DEMO');toast('Código de demonstração copiado.')}catch{toast('Código de demonstração: PCN-DEMO')}});
+render();
