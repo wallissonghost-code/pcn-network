@@ -5,13 +5,27 @@ function loadState(){
  try {
   const value=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
   if(value&&Number.isFinite(value.balance)&&value.balance>=0&&typeof value.active==='boolean'&&Array.isArray(value.history)){
-   return {balance:Math.min(value.balance,1000000),active:value.active,history:value.history.filter(x=>x&&typeof x.date==='string').slice(0,30)};
+   return {balance:Math.min(value.balance,1000000),active:value.active,startedAt:Number.isFinite(value.startedAt)?value.startedAt:Date.now(),history:value.history.filter(x=>x&&typeof x.date==='string').slice(0,30)};
   }
  }catch(e){/* Private browsing may block storage. */}
- return {balance:0,active:false,history:[]};
+ return {balance:0,active:false,startedAt:0,history:[]};
 }
 const state=loadState();
 function saveState(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}catch(e){/* Preview still works without persistence. */}}
+const CYCLE_MS=24*60*60*1000;
+function updateProgress(){
+ const elapsed=state.active?Math.max(0,Date.now()-state.startedAt):0;
+ const percent=state.active?Math.min(100,elapsed/CYCLE_MS*100):0;
+ const remaining=state.active?Math.max(0,CYCLE_MS-elapsed):CYCLE_MS;
+ const h=Math.floor(remaining/3600000),m=Math.floor((remaining%3600000)/60000);
+ const label=state.active?(remaining===0?'Ciclo concluído':h+'h '+String(m).padStart(2,'0')+'m restantes'):'24h 00m restantes';
+ for(const prefix of ['home','mine']){
+  $(prefix+'-progress-fill').style.width=percent.toFixed(2)+'%';
+  $(prefix+'-progress').setAttribute('aria-valuenow',String(Math.round(percent)));
+  $(prefix+'-progress-percent').textContent=percent.toFixed(1).replace('.',',')+'%';
+ }
+ $('home-remaining').textContent=label;$('mine-remaining').textContent=label;
+}
 const headings={home:'Visão geral',mine:'Mineração',wallet:'Minha carteira',network:'Ecossistema'};
 function toast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),4000)}
 function go(tab){if(!headings[tab])return;document.querySelectorAll('.page').forEach(el=>el.classList.toggle('active',el.id===tab));document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));$('page-heading').textContent=headings[tab];window.scrollTo({top:0,behavior:'smooth'})}
@@ -21,19 +35,21 @@ function render(){
  $('balance-main').textContent=number;$('wallet-balance').textContent=number;
  $('mine-badge').textContent=state.active?'EM ANDAMENTO':'DISPONÍVEL';
  $('mine-badge').classList.toggle('running',state.active);
+ document.querySelectorAll('.orb-wrap').forEach(el=>el.classList.toggle('is-mining',state.active));
  $('mining-status').textContent=state.active?'Sessão demonstrativa ativa':'Pronto para começar';
  $('mining-sub').textContent=state.active?'Recompensa fictícia disponível para teste':'Ative seu ciclo de 24 horas';
  $('mine-action').innerHTML=state.active?'Resgatar 2,40 PCN <span>↗</span>':'Iniciar mineração <span>↗</span>';
  $('mine-page-status').textContent=state.active?'Sessão ativada!':'Pronto para minerar';
  $('mine-page-detail').textContent=state.active?'Faça um resgate simulado para conhecer o fluxo.':'Ative sua sessão e explore a experiência de mineração.';
  $('mine-page-action').textContent=state.active?'Resgatar 2,40 PCN fictícios ↗':'Ativar sessão de demonstração ↗';
+ updateProgress();
  const list=$('transactions');list.replaceChildren();
  if(!state.history.length){const el=document.createElement('div');el.className='empty-state';el.textContent='Nenhuma atividade ainda. Inicie uma mineração para experimentar.';list.append(el)}
  for(const entry of state.history){const el=document.createElement('div');el.className='transaction';const left=document.createElement('div');const name=document.createElement('strong');name.textContent='Recompensa de mineração';const date=document.createElement('small');date.textContent=entry.date;left.append(name,date);const amount=document.createElement('span');amount.className='positive';amount.textContent='+2,40 PCN';el.append(left,amount);list.append(el)}
 }
 function mine(){
- if(!state.active){state.active=true;toast('Ciclo demonstrativo ativado. Você já pode simular o resgate.')}
- else{state.active=false;state.balance=Math.round((state.balance+2.4)*100)/100;state.history.unshift({date:new Date().toLocaleString('pt-BR')+' · Demonstração'});toast('+2,40 PCN fictícios adicionados à carteira.')}
+ if(!state.active){state.active=true;state.startedAt=Date.now();toast('Ciclo demonstrativo ativado. Você já pode simular o resgate.')}
+ else{state.active=false;state.startedAt=0;state.balance=Math.round((state.balance+2.4)*100)/100;state.history.unshift({date:new Date().toLocaleString('pt-BR')+' · Demonstração'});toast('+2,40 PCN fictícios adicionados à carteira.')}
  saveState();render()
 }
 $('mine-action').addEventListener('click',mine);
@@ -41,6 +57,7 @@ $('mine-page-action').addEventListener('click',mine);
 $('copy-code').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('PCN-DEMO');toast('Código de demonstração copiado.')}catch{toast('Código de demonstração: PCN-DEMO')}});
 $('reset-demo').addEventListener('click',()=>{
  if(!window.confirm('Reiniciar a demonstração? O saldo fictício e o histórico salvos neste navegador serão apagados.'))return;
- state.balance=0;state.active=false;state.history=[];saveState();render();toast('Demonstração reiniciada.');
+ state.balance=0;state.active=false;state.startedAt=0;state.history=[];saveState();render();toast('Demonstração reiniciada.');
 });
 render();
+setInterval(updateProgress,15000);
