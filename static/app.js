@@ -1,6 +1,17 @@
 // PCN public preview: local-only interactive simulation. No backend or real assets.
 const $=id=>document.getElementById(id);
-const state={balance:0,active:false,history:[]};
+const STORAGE_KEY='pcn-preview-v1';
+function loadState(){
+ try {
+  const value=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+  if(value&&Number.isFinite(value.balance)&&value.balance>=0&&typeof value.active==='boolean'&&Array.isArray(value.history)){
+   return {balance:Math.min(value.balance,1000000),active:value.active,history:value.history.filter(x=>x&&typeof x.date==='string').slice(0,30)};
+  }
+ }catch(e){/* Private browsing may block storage. */}
+ return {balance:0,active:false,history:[]};
+}
+const state=loadState();
+function saveState(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}catch(e){/* Preview still works without persistence. */}}
 const headings={home:'Visão geral',mine:'Mineração',wallet:'Minha carteira',network:'Ecossistema'};
 function toast(message){const el=$('toast');el.textContent=message;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),4000)}
 function go(tab){if(!headings[tab])return;document.querySelectorAll('.page').forEach(el=>el.classList.toggle('active',el.id===tab));document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab));$('page-heading').textContent=headings[tab];window.scrollTo({top:0,behavior:'smooth'})}
@@ -23,9 +34,13 @@ function render(){
 function mine(){
  if(!state.active){state.active=true;toast('Ciclo demonstrativo ativado. Você já pode simular o resgate.')}
  else{state.active=false;state.balance=Math.round((state.balance+2.4)*100)/100;state.history.unshift({date:new Date().toLocaleString('pt-BR')+' · Demonstração'});toast('+2,40 PCN fictícios adicionados à carteira.')}
- render()
+ saveState();render()
 }
 $('mine-action').addEventListener('click',mine);
 $('mine-page-action').addEventListener('click',mine);
 $('copy-code').addEventListener('click',async()=>{try{await navigator.clipboard.writeText('PCN-DEMO');toast('Código de demonstração copiado.')}catch{toast('Código de demonstração: PCN-DEMO')}});
+$('reset-demo').addEventListener('click',()=>{
+ if(!window.confirm('Reiniciar a demonstração? O saldo fictício e o histórico salvos neste navegador serão apagados.'))return;
+ state.balance=0;state.active=false;state.history=[];saveState();render();toast('Demonstração reiniciada.');
+});
 render();
