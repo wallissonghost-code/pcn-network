@@ -89,6 +89,21 @@ class ApiIntegration(unittest.TestCase):
   for token in (a['token'], b['token']):
    status, _ = self.request('/api/status', token=token)
    self.assertEqual(status, 401)
+ def test_static_security_headers(self):
+  for path in ('/', '/app.js', '/style.css'):
+   with urlopen(self.base + path, timeout=5) as response:
+    self.assertEqual(response.status, 200)
+    self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+    self.assertEqual(response.headers['X-Frame-Options'], 'DENY')
+    self.assertEqual(response.headers['Cache-Control'], 'no-store')
+    self.assertIn("frame-ancestors 'none'", response.headers['Content-Security-Policy'])
+
+ def test_reject_non_json_post(self):
+  req = Request(self.base + '/api/login', data=b'email=a', headers={'Content-Type':'application/x-www-form-urlencoded'})
+  with self.assertRaises(HTTPError) as err:
+   urlopen(req, timeout=5)
+  self.assertEqual(err.exception.code, 415)
+
  def test_health_and_network(self):
   status, data = self.request('/api/health')
   self.assertEqual(status, 200)
