@@ -110,15 +110,21 @@ def claim(c,uid,now):
  return {'claimed_micro':amount,'claimed':amount/1e6},200
 
 class Handler(BaseHTTPRequestHandler):
+ def secure_headers(self):
+  self.send_header('Referrer-Policy','no-referrer')
+  self.send_header('X-Frame-Options','DENY')
+  self.send_header('X-Content-Type-Options','nosniff')
+  self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+  self.send_header('Cache-Control','no-store')
  def send(self,data,status=200):
   raw=json.dumps(data,ensure_ascii=False).encode()
-  self.send_response(status);self.send_header('Referrer-Policy','no-referrer');self.send_header('X-Frame-Options','DENY');self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store');self.send_header('X-Content-Type-Options','nosniff');self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'");self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+  self.send_response(status);self.secure_headers();self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
  def do_GET(self):
   path=urlparse(self.path).path
   if path=='/':
-   raw=(ROOT/'static'/'index.html').read_bytes();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+   raw=(ROOT/'static'/'index.html').read_bytes();self.send_response(200);self.secure_headers();self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path in ('/app.js','/style.css'):
-   raw=(ROOT/'static'/path.lstrip('/')).read_bytes();self.send_response(200);self.send_header('Content-Type','text/javascript' if path.endswith('js') else 'text/css');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+   raw=(ROOT/'static'/path.lstrip('/')).read_bytes();self.send_response(200);self.secure_headers();self.send_header('Content-Type','text/javascript' if path.endswith('js') else 'text/css');self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
   if path=='/api/health':
    try:
     with conn() as c:c.execute('SELECT 1').fetchone()
@@ -177,6 +183,7 @@ class Handler(BaseHTTPRequestHandler):
   except ValueError:return self.send({'error':'Comprimento inválido'},400)
   if length<0:return self.send({'error':'Content-Length obrigatório'},411)
   if length>4096:return self.send({'error':'Payload muito grande'},413)
+  if self.headers.get('Content-Type','').split(';',1)[0].strip().lower()!='application/json':return self.send({'error':'Content-Type deve ser application/json'},415)
   try:
    data=json.loads(self.rfile.read(length))
    if not isinstance(data,dict):raise ValueError('JSON object required')
