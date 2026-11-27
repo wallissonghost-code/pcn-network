@@ -18,11 +18,11 @@ class ApiIntegration(unittest.TestCase):
   self.temp = tempfile.TemporaryDirectory()
   self.old_db = server.DB
   self.old_beta = os.environ.get('PCN_PRIVATE_BETA')
-  self.old_admin = os.environ.get('PCN_ADMIN_EMAIL')
+  self.old_admin = os.environ.get('PCN_ADMIN_USER_ID')
   server.DB = Path(self.temp.name) / 'integration.sqlite3'
   server.init()
   os.environ['PCN_PRIVATE_BETA'] = '0'
-  os.environ.pop('PCN_ADMIN_EMAIL', None)
+  os.environ.pop('PCN_ADMIN_USER_ID', None)
   self.http = ThreadingHTTPServer(('127.0.0.1', 0), server.Handler)
   self.thread = threading.Thread(target=self.http.serve_forever, daemon=True)
   self.thread.start()
@@ -35,8 +35,8 @@ class ApiIntegration(unittest.TestCase):
   server.DB = self.old_db
   if self.old_beta is None: os.environ.pop('PCN_PRIVATE_BETA', None)
   else: os.environ['PCN_PRIVATE_BETA'] = self.old_beta
-  if self.old_admin is None: os.environ.pop('PCN_ADMIN_EMAIL', None)
-  else: os.environ['PCN_ADMIN_EMAIL'] = self.old_admin
+  if self.old_admin is None: os.environ.pop('PCN_ADMIN_USER_ID', None)
+  else: os.environ['PCN_ADMIN_USER_ID'] = self.old_admin
   self.temp.cleanup()
 
  def request(self, path, data=None, token=None):
@@ -62,7 +62,7 @@ class ApiIntegration(unittest.TestCase):
   self.assertEqual(status, 200)
   status, ref = self.request('/api/referrals', token=token)
   self.assertEqual(ref['invited_count'], 1)
-  os.environ['PCN_ADMIN_EMAIL'] = 'owner@example.com'
+  os.environ['PCN_ADMIN_USER_ID'] = '1'
   status, stats = self.request('/api/admin/stats', token=token)
   self.assertEqual(status, 200)
   self.assertEqual(stats['users'], 2)
