@@ -45,18 +45,20 @@ class TestCore(unittest.TestCase):
    self.assertEqual(c.execute('SELECT COUNT(*) FROM referrals WHERE inviter_id=1').fetchone()[0],1)
    self.assertEqual(c.execute('SELECT COALESCE(SUM(amount),0) FROM ledger').fetchone()[0],0)
  def test_admin_access_and_stats(self):
-  old=os.environ.get('PCN_ADMIN_EMAIL')
+  old=os.environ.get('PCN_ADMIN_USER_ID')
   try:
-   os.environ['PCN_ADMIN_EMAIL']='a@b.com'
+   os.environ['PCN_ADMIN_USER_ID']='1'
    with server.conn() as db:
     self.assertTrue(server.is_admin(db,1))
     self.assertEqual(server.admin_stats(db,100000)['users'],1)
     self.assertEqual(server.admin_stats(db,100000)['issued_pcn'],0)
-   os.environ['PCN_ADMIN_EMAIL']='other@example.com'
+   os.environ['PCN_ADMIN_USER_ID']='2'
+   with server.conn() as db:self.assertFalse(server.is_admin(db,1))
+   os.environ['PCN_ADMIN_USER_ID']='a@b.com'
    with server.conn() as db:self.assertFalse(server.is_admin(db,1))
   finally:
-   if old is None:os.environ.pop('PCN_ADMIN_EMAIL',None)
-   else:os.environ['PCN_ADMIN_EMAIL']=old
+   if old is None:os.environ.pop('PCN_ADMIN_USER_ID',None)
+   else:os.environ['PCN_ADMIN_USER_ID']=old
  def test_network_statistics(self):
   with server.conn() as db:
    s=server.admin_stats(db,100000)

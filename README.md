@@ -25,7 +25,7 @@ python -m unittest discover -s tests -v
 
 Por segurança, o servidor escuta apenas em `127.0.0.1` e bloqueia novos cadastros por padrão. `PCN_PRIVATE_BETA=0` habilita cadastro **somente para desenvolvimento local**. Não exponha essa configuração na internet.
 
-Para liberar o painel administrativo de uma conta já cadastrada, defina `PCN_ADMIN_EMAIL` no ambiente do processo. Não armazene dados pessoais ou segredos no GitHub.
+Para liberar o painel administrativo com o ID numérico de uma conta já cadastrada, defina `PCN_ADMIN_USER_ID` no ambiente do processo. Não armazene dados pessoais ou segredos no GitHub.
 
 ## API de teste
 `GET /api/health`, `GET /api/network`, `POST /api/register`, `POST /api/login`, `POST /api/logout`, `GET /api/status`, `POST /api/start`, `POST /api/claim`, `GET /api/referrals`, `GET /api/admin/access`, `GET /api/admin/stats`.

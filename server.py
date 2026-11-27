@@ -67,10 +67,10 @@ def ensure_referral_code(c,uid):
  raise RuntimeError('Não foi possível gerar código de indicação')
 
 def is_admin(c,uid):
- email=os.getenv('PCN_ADMIN_EMAIL','').strip().lower()
- if not email:return False
- row=c.execute('SELECT email FROM users WHERE id=?',(uid,)).fetchone()
- return bool(row and hmac.compare_digest(row[0],email))
+ # Use immutable database identity; an unverified email is never proof of ownership.
+ configured=os.getenv('PCN_ADMIN_USER_ID','').strip()
+ if not configured.isdecimal() or int(configured)<1:return False
+ return uid==int(configured) and c.execute('SELECT 1 FROM users WHERE id=?',(uid,)).fetchone() is not None
 
 def admin_stats(c,now):
  today=day(now)
@@ -175,7 +175,7 @@ class Handler(BaseHTTPRequestHandler):
    if not isinstance(data,dict):raise ValueError('JSON object required')
   except (ValueError,UnicodeDecodeError):return self.send({'error':'JSON inválido'},400)
   path=urlparse(self.path).path;now=int(time.time())
-  if path in ('/api/register','/api/login') and os.getenv('PCN_PRIVATE_BETA','1')=='1' and path=='/api/register':
+  if path=='/api/register' and os.getenv('PCN_PRIVATE_BETA','1')!='0':
    return self.send({'error':'Cadastro fechado: versão privada de testes'},403)
   if path in ('/api/register','/api/login'):
    ip=self.client_address[0]
